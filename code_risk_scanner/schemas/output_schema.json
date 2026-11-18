@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "enterprise-code-risk-scanner report",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["scan_metadata", "gate_status", "summary", "findings"],
+  "properties": {
+    "scan_metadata": {
+      "type": "object",
+      "required": ["repo_name", "branch", "commit_id", "scan_mode", "scanned_files_count"],
+      "properties": {
+        "repo_name": {"type": "string"},
+        "branch": {"type": "string"},
+        "commit_id": {"type": "string"},
+        "scan_mode": {"type": "string", "enum": ["FULL_PERIODIC", "INCREMENTAL_MR"]},
+        "scanned_files_count": {"type": "integer", "minimum": 0},
+        "scanner_version": {"type": "string"},
+        "generated_at": {"type": "string", "description": "Asia/Shanghai, ISO 8601"},
+        "scan_note": {"type": "string"}
+      }
+    },
+    "gate_status": {
+      "type": "string",
+      "enum": ["PASS", "BLOCK"],
+      "description": "critical_count > 0 时必须为 BLOCK"
+    },
+    "summary": {
+      "type": "object",
+      "required": ["critical_count", "warning_count", "suggestion_count"],
+      "properties": {
+        "critical_count": {"type": "integer", "minimum": 0},
+        "warning_count": {"type": "integer", "minimum": 0},
+        "suggestion_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "rule_id",
+          "severity",
+          "middleware",
+          "file_path",
+          "line_range",
+          "code_snippet",
+          "cause",
+          "harm",
+          "risk_analysis",
+          "remediation_suggestion"
+        ],
+        "properties": {
+          "rule_id": {"type": "string"},
+          "title": {"type": "string"},
+          "severity": {"type": "string", "enum": ["Critical", "Warning", "Suggestion"]},
+          "middleware": {"type": "string", "enum": ["TDDL", "Lindorm", "Redis", "ES", "Java", "Go", "Env", "Security"]},
+          "file_path": {"type": "string"},
+          "line_range": {"type": "string", "pattern": "^[0-9]+-[0-9]+$"},
+          "code_snippet": {"type": "string"},
+          "cause": {"type": "string", "description": "为什么这段代码会出问题"},
+          "harm": {"type": "string", "description": "线上可能造成的危害"},
+          "risk_analysis": {"type": "string", "description": "原因、证据、危害、历史故障合在一段里，给人或机器人直接读"},
+          "remediation_suggestion": {"type": "string", "description": "可照着改的修复说明，带代码示例"},
+          "needs_review": {"type": "boolean"},
+          "owner": {"type": "string"},
+          "incident": {"type": "string"}
+        }
+      }
+    }
+  }
+}

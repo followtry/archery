@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- tddl sharding logical table order_tab -->
+<mapper namespace="dao.OrderSafeMapper">
+  <select id="byUser">
+    select id, status from order_tab where user_id = #{userId} and status = #{status}
+  </select>
+</mapper>

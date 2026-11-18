@@ -2,6 +2,8 @@
 *.swp
 *.lock
 *.log
+scan_report.json
+scan_report.md
 .idea/
 .DS_Store
 archery/settings.py.github

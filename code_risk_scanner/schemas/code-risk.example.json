@@ -1,0 +1,5 @@
+{
+  "sharding_keys": ["user_id", "tenant_id", "order_id"],
+  "suppress_rules": [],
+  "suppress_paths": ["legacy/"]
+}
