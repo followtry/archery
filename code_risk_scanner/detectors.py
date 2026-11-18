@@ -84,6 +84,8 @@ def scan_text(path, text, shard_keys=None):
         hits.extend(_java(text))
     if "go" in feats:
         hits.extend(_go(text))
+    from code_risk_scanner import envsec
+    hits.extend(envsec.scan(path, text))
     return _dedupe(hits)
 
 

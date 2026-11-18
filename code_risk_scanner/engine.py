@@ -15,7 +15,7 @@ MODES = ("FULL_PERIODIC", "INCREMENTAL_MR")
 
 
 def scan(repo_path, scan_mode="FULL_PERIODIC", diff_base=None, blame=False,
-         sharding_keys=None, skill_dir=None):
+         sharding_keys=None, skill_dir=None, rollout=None):
     repo = os.path.abspath(repo_path)
     if scan_mode not in MODES:
         raise ValueError("scan_mode 只能是 FULL_PERIODIC 或 INCREMENTAL_MR")
@@ -60,7 +60,7 @@ def scan(repo_path, scan_mode="FULL_PERIODIC", diff_base=None, blame=False,
         item["file_path"],
         item["line_range"],
     ))
-    return _report(repo, scan_mode, files, findings, errors, note, skill_dir)
+    return _report(repo, scan_mode, files, findings, errors, note, skill_dir, rollout)
 
 
 def decide_exit(scan_mode, gate_status):
@@ -113,7 +113,7 @@ def _materialize(repo, rel, text, raw, blame):
     return finding
 
 
-def _report(repo, scan_mode, files, findings, errors, note, skill_dir):
+def _report(repo, scan_mode, files, findings, errors, note, skill_dir, rollout=None):
     from datetime import datetime, timedelta, timezone
 
     counts = {"Critical": 0, "Warning": 0, "Suggestion": 0}
@@ -133,6 +133,8 @@ def _report(repo, scan_mode, files, findings, errors, note, skill_dir):
         metadata["scan_note"] = note
     if skill_dir:
         metadata["skill_dir"] = skill_dir
+    if rollout:
+        metadata["rollout"] = rollout
     if errors:
         metadata["scan_errors"] = errors
     return {

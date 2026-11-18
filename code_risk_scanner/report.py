@@ -6,7 +6,7 @@ import os
 import urllib.request
 
 _SEVERITY = {"Critical", "Warning", "Suggestion"}
-_MIDDLEWARE = {"TDDL", "Lindorm", "Redis", "ES", "Java", "Go"}
+_MIDDLEWARE = {"TDDL", "Lindorm", "Redis", "ES", "Java", "Go", "Env", "Security"}
 _MODES = {"FULL_PERIODIC", "INCREMENTAL_MR"}
 _FINDING_KEYS = [
     "rule_id", "severity", "middleware", "file_path", "line_range",

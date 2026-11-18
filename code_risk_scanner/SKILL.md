@@ -1,7 +1,7 @@
 ---
 name: enterprise-code-risk-scanner
 description: 对 Java/Go 以及 TDDL、Lindorm、Redis、ES 做全量周期巡检或 MR 增量扫描，输出带原因、危害和修复的结构化报告。
-version: 1.1.0
+version: 1.2.0
 triggers:
   - "周期扫描"
   - "代码隐患巡检"
@@ -47,6 +47,8 @@ triggers:
 | jedis、redisson、lettuce、go-redis、redis | `rules/redis_rules.md` |
 | elasticsearch、RestHighLevelClient、SearchSourceBuilder、wildcardQuery | `rules/es_rules.md` |
 | 任意 `.java` / `.go` | `rules/lang_java_go.md` |
+| 连接串、`application*.properties/yml` | `rules/env_rules.md` |
+| 密码、回调、按单号更新 | `rules/security_rules.md` |
 
 分片键默认是 `user_id`、`tenant_id`、`order_id` 等常见路由列。这个仓库如果不是这些列，在仓库根放 `.code-risk.json`，用 `sharding_keys` 整表替换。样例在 `schemas/code-risk.example.json`。`suppress_rules` 和 `suppress_paths` 用来关掉已经评估过的误报，不要在代码里把规则改弱。
 
@@ -113,6 +115,29 @@ python3 -m unittest code_risk_scanner.tests.test_scanner
 2. 跑上面的周期脚本。工作目录是仓库根。
 3. 告警正文在 `scan_report.md`。需要点名时打开 `BLAME=1`，用 `owner` 去 @。
 4. 周期模式退出码保持 0。MR 流水线改用 `run_mr_gate.sh`，`BLOCK` 时退出码 1，合入失败。
+
+# 环境隔离和安全防护
+
+环境只认四套：日常、预发、灰度、生产。连接串写死某一套、配置文件名和地址不是一套、一份默认配置混了多套，分别对应 ENV-001、ENV-002、ENV-003。
+
+安全防护看三件事：明文密码或密钥（SEC-001）、回调没有验签（SEC-002）、外部传入单号却不校验用户归属（SEC-003）。命中一样写原因、危害和修复。
+
+# 交易团队试点轮次
+
+应用名单以 `https://code.alibaba-inc.com/AOS-TMP/stability_ai/blob/master/data/apps.json` 为准，分成逆向、正向、支付履约。当前环境访问这个内网地址会超时，所以扫描器不内置那份名单。流水线在内网把文件放到 `--apps`。
+
+1. 逆向团队里名字匹配 `kernel*` 的服务。
+2. 逆向团队全部应用。
+3. 正向和支付履约团队全部应用。
+4. 交易团队全部应用。
+
+```bash
+python3 code_risk_scanner/run_scanner.py \
+  --list-round --round 1 \
+  --apps /path/to/stability_ai/data/apps.json
+```
+
+扫描某个应用仓库时加上同样的 `--round` 和 `--apps`，报告的 `scan_metadata.rollout` 会记下这一轮覆盖了哪些应用。轮次不代替代码扫描，它决定这一轮拉哪些应用。
 
 # 规则从哪来
 

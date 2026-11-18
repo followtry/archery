@@ -11,6 +11,7 @@ import unittest
 from code_risk_scanner.catalog import RULES, render_all
 from code_risk_scanner.engine import decide_exit, scan
 from code_risk_scanner.report import dingtalk_payload, validate
+from code_risk_scanner.rollout import load_apps, select_round
 from code_risk_scanner.run_scanner import main
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -42,6 +43,12 @@ EXPECT = {
     "GO-001": "dao/order_dao.go",
     "GO-002": "dao/order_dao.go",
     "GO-003": "dao/order_dao.go",
+    "ENV-001": "resources/application.properties",
+    "ENV-002": "resources/application-prod.properties",
+    "ENV-003": "resources/application.yml",
+    "SEC-001": "resources/application.properties",
+    "SEC-002": "controller/PayNotifyController.java",
+    "SEC-003": "controller/RefundController.java",
 }
 
 SAFE = {
@@ -53,6 +60,9 @@ SAFE = {
     "search/OrderSearchSafe.java",
     "service/PoolSafeService.java",
     "dao/order_safe.go",
+    "resources/application-daily.properties",
+    "controller/PayNotifySafeController.java",
+    "controller/RefundSafeController.java",
 }
 
 
@@ -80,7 +90,7 @@ class ScannerTest(unittest.TestCase):
         paths = " ".join(item["file_path"] for item in self.report["findings"])
         for token in ("OrderDaoTest.java", "order_test.go", "order.pb.go", "vendor/"):
             self.assertNotIn(token, paths)
-        self.assertEqual(self.report["scan_metadata"]["scanned_files_count"], 22)
+        self.assertEqual(self.report["scan_metadata"]["scanned_files_count"], 30)
         self.assertNotIn("scan_errors", self.report["scan_metadata"])
 
     def test_gate_and_schema(self):
@@ -240,6 +250,39 @@ class ScannerTest(unittest.TestCase):
                 shutil.rmtree(copied)
         finally:
             os.remove(out)
+
+
+class RolloutTest(unittest.TestCase):
+    def test_four_rounds_follow_the_trading_teams(self):
+        apps = load_apps(os.path.join(ROOT, "testdata", "apps.json"))
+        first = [item["name"] for item in select_round(apps, 1)["apps"]]
+        second = [item["name"] for item in select_round(apps, 2)["apps"]]
+        third = [item["name"] for item in select_round(apps, 3)["apps"]]
+        fourth = [item["name"] for item in select_round(apps, 4)["apps"]]
+        self.assertEqual(first, ["kernel-dispute", "kernel-refund"])
+        self.assertEqual(second, ["kernel-dispute", "kernel-refund", "refund-portal"])
+        self.assertEqual(third, ["tp-fulfillment", "buy2"])
+        self.assertEqual(sorted(fourth), sorted(second + third))
+
+    def test_list_shape_and_cli(self):
+        apps = load_apps_from_rows([
+            {"appName": "kernel-pay", "team": "reverse", "repo": "git@example"},
+            {"appName": "buy2", "group": "正向"},
+        ])
+        self.assertEqual([item["name"] for item in select_round(apps, 1)["apps"]], ["kernel-pay"])
+        fd, out = tempfile.mkstemp(suffix=".json")
+        os.close(fd)
+        apps_path = os.path.join(ROOT, "testdata", "apps.json")
+        try:
+            code = main(["--list-round", "--round", "1", "--apps", apps_path, "--output", out])
+            self.assertEqual(code, 0)
+        finally:
+            os.remove(out)
+
+
+def load_apps_from_rows(rows):
+    from code_risk_scanner.rollout import _normalize
+    return _normalize(rows)
 
 
 def _git(cwd, *args):

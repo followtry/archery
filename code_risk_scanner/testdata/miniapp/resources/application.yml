@@ -1,0 +1,3 @@
+trade:
+  daily: jdbc:mysql://rm-a.daily.mysql.rds.aliyuncs.com:3306/trade
+  online: jdbc:mysql://rm-b.online.mysql.rds.aliyuncs.com:3306/trade

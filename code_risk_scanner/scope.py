@@ -17,9 +17,15 @@ INCLUDE_DIR_NAMES = {
     "mybatis",
     "lindorm",
     "hbase",
+    "controller",
+    "web",
+    "api",
+    "facade",
+    "endpoint",
 }
 EXCLUDE_DIR_NAMES = {"vendor", "node_modules", "target", "build", ".git", "testdata"}
 SOURCE_SUFFIXES = {".java", ".go", ".xml"}
+CONFIG_SUFFIXES = {".properties", ".yml", ".yaml"}
 
 
 def is_generated_or_test(name):
@@ -40,6 +46,9 @@ def is_excluded(path):
 def in_business_scope(path):
     norm = path.replace("\\", "/")
     suffix = os.path.splitext(norm)[1].lower()
+    name = os.path.basename(norm).lower()
+    if suffix in CONFIG_SUFFIXES and name.startswith("application"):
+        return True
     if suffix not in SOURCE_SUFFIXES:
         return False
     parts = {p.lower() for p in norm.split("/") if p}

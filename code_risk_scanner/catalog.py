@@ -28,6 +28,8 @@ RULE_FILES = {
     "ES": "es_rules.md",
     "Java": "lang_java_go.md",
     "Go": "lang_java_go.md",
+    "Env": "env_rules.md",
+    "Security": "security_rules.md",
 }
 
 RULES = {
@@ -467,6 +469,108 @@ client := &http.Client{Timeout: 2 * time.Second}
 resp, err := client.Get(u)
 ```""",
     },
+    "ENV-001": {
+        "severity": "Critical",
+        "middleware": "Env",
+        "title": "连接地址写死了某一个环境",
+        "cause": "JDBC、Redis 或 HTTP 地址里带了日常、预发、灰度或生产的域名，又写在没有环境后缀的代码或默认配置里。这份配置打到哪个环境，连的都是同一个地址。",
+        "harm": "日常任务会打进生产库，或者生产发布后仍连着日常库。两边的数据串在一起，订正和缓存都会污染另一套环境。",
+        "incident": "默认 application.properties 写了 daily 的 RDS 地址，生产发布后订单写进了日常库，线上查不到单。",
+        "detect": "文件名看不出环境，连接串主机名里带 daily、pre、gray 或 online/prod。",
+        "denoise": "application-daily、application-prod 这类文件名已经声明环境，并且地址和文件名一致时不报。地址是 ${} 占位符时不报。",
+        "remediation": """按环境拆配置，地址从环境自己的配置中心读，不要写死。
+
+```properties
+# application-daily.properties
+spring.datasource.url=jdbc:mysql://rm-xxx.daily.mysql.rds.aliyuncs.com:3306/trade
+# application-prod.properties 使用生产地址，不要复用日常域名
+spring.datasource.url=${db.url}
+```""",
+    },
+    "ENV-002": {
+        "severity": "Critical",
+        "middleware": "Env",
+        "title": "配置文件声明的环境和连接地址不是一套",
+        "cause": "文件名已经标明日常、预发、灰度或生产，里面的连接串却指向另一套环境。发布系统按文件名选配置，连上去的却是别的库。",
+        "harm": "生产配置指向日常或预发时，线上读写打到错误的库，出现丢单、脏写和缓存串环境。灰度配置指向生产主库时，灰度流量直接改生产数据。",
+        "incident": "application-prod.properties 里留着 daily 的 MySQL 地址，生产发布后支付结果写进日常库。",
+        "detect": "文件名能判断环境，连接串里的环境标记和文件名不一致。",
+        "denoise": "地址是占位符，或和文件名是同一环境时不报。",
+        "remediation": """生产和低环境的地址分开。生产文件里只留生产地址。
+
+```properties
+# application-prod.properties
+spring.datasource.url=jdbc:mysql://rm-prod.online.mysql.rds.aliyuncs.com:3306/trade
+```""",
+    },
+    "ENV-003": {
+        "severity": "Warning",
+        "middleware": "Env",
+        "title": "同一份默认配置混了多套环境",
+        "cause": "一份没有环境后缀的配置里同时写了两套及以上环境的连接串。用哪一套取决于调用方有没有选对 key，选错就串环境。",
+        "harm": "灰度、预发和生产共用这份文件时，很容易拿错 key，把流量打到另一套库或缓存。",
+        "incident": "一份 application.yml 同时写了 daily 和 online 的地址，预发发版时读到了 online 那一项。",
+        "detect": "文件名没有环境后缀，连接串里出现至少两种环境。",
+        "denoise": "已经拆成 application-daily、application-prod 的文件不在这里报。",
+        "remediation": """一种环境一个文件，默认配置里不放具体地址。
+
+```yaml
+# 默认文件只留占位
+spring.datasource.url: ${db.url}
+```""",
+    },
+    "SEC-001": {
+        "severity": "Critical",
+        "middleware": "Security",
+        "title": "密码或密钥明文写在仓库里",
+        "cause": "password、accessKey、secret 被赋成一个具体字符串，而不是配置中心或加密占位符。仓库能被克隆，密钥就跟着出去。",
+        "harm": "数据库、缓存和开放接口的口令泄露后，可以直接登录生产或日常资源，数据被读走或改掉。",
+        "incident": "数据源密码写在 application.properties 里，仓库权限放大后被用来直连订单库。",
+        "detect": "password、secret_key、access_key、appsecret 后面是长度不少于 4 的字面量，或 setPassword/setSecret 传入了同样的字面量。",
+        "denoise": "值是 ${...}、ENC(...)、星号占位或空值时不报。注释行不报。",
+        "remediation": """密钥放配置中心或加密项，仓库里只留占位符。
+
+```properties
+spring.datasource.password=${db.password}
+```""",
+    },
+    "SEC-002": {
+        "severity": "Critical",
+        "middleware": "Security",
+        "title": "回调或通知入口没有验签",
+        "cause": "路径或方法名是 notify、callback，方法里直接 update/delete/insert，但没有验签。外部只要知道地址和单号就能改状态。",
+        "harm": "支付、退款、履约回调可以被伪造，订单被改成已支付或已退款，造成资损。",
+        "incident": "支付通知没有校验签名，伪造的成功回调把未付款订单推进了履约。",
+        "detect": "方法签名或映射里有 notify/callback，方法体有写库，且没有 verify、checkSign、signature、验签或 HMAC/RSA。",
+        "denoise": "同一方法里已经调用验签时不报。扫描器看不到另一个过滤器里的验签，这种情况需要人工看过滤器链。",
+        "remediation": """先验签，通过之后才改状态。验签失败直接拒绝。
+
+```java
+@PostMapping("/pay/notify")
+public void onNotify(String body, String sign) {
+    if (!rsa.verify(body, sign)) {
+        throw new IllegalArgumentException("bad sign");
+    }
+    payOrderDao.markPaid(body);
+}
+```""",
+    },
+    "SEC-003": {
+        "severity": "Critical",
+        "middleware": "Security",
+        "title": "按外部传入的单号改数据，没有校验是不是当前用户的",
+        "cause": "orderId、refundId 来自请求参数，更新或删除语句的 WHERE 里没有 user_id、buyer_id 这类归属列，方法里也没有归属校验。知道或猜到单号就能改别人的单。",
+        "harm": "跨用户改状态、改金额或删数据。交易链路上这就是越权，影响的是别人的订单、退款和支付。",
+        "incident": "退款接口只按 refundId 更新，调用方替换单号后改掉了其他买家的退款单。",
+        "detect": "方法从 getParameter 或 @RequestParam 拿 orderId/bizOrderId/refundId，同一方法里的 UPDATE/DELETE 没有用户归属列，也没有 checkOwner、登录用户或鉴权调用。",
+        "denoise": "WHERE 里有 buyer_id、user_id 等归属列，或方法里有归属校验时不报。校验如果写在另一个类里，这里会漏，需要沿调用链再看。",
+        "remediation": """WHERE 带上当前登录用户，或先做归属校验再写。
+
+```java
+String buyerId = session.getCurrentUser();
+String sql = "update refund set status = 1 where id = #{id} and buyer_id = #{buyerId}";
+```""",
+    },
 }
 
 
@@ -552,6 +656,16 @@ def render_all():
             ["Java", "Go"],
             "Java 与 Go 并发和资源规则",
             "覆盖无界线程池、CompletableFuture、共享的 SimpleDateFormat、goroutine 泄漏、并发 map、循环 defer 和无超时的 HTTP 客户端。\n\n" + common,
+        ),
+        "env_rules.md": render_file(
+            ["Env"],
+            "环境隔离规则（日常、预发、灰度、生产）",
+            "覆盖写死的环境地址、配置文件和连接串不是一套环境、一份默认配置混多套环境。\n\n" + common,
+        ),
+        "security_rules.md": render_file(
+            ["Security"],
+            "安全防护规则",
+            "覆盖明文密码或密钥、回调没有验签、按外部单号跨用户修改。\n\n" + common,
         ),
     }
     return docs

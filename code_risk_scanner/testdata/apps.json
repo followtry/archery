@@ -1,0 +1,6 @@
+{
+  "_comment": "合成样例，只给轮次筛选的单元测试用。真实交易团队名单在 code.alibaba-inc.com/AOS-TMP/stability_ai 的 data/apps.json，当前环境访问该地址超时，不能把这份样例当成线上名单。",
+  "逆向": ["kernel-refund", "kernel-dispute", "refund-portal"],
+  "正向": ["buy2"],
+  "支付履约": ["tp-fulfillment"]
+}
